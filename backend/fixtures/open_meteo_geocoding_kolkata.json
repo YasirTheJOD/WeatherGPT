@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "id": 1275004,
+      "name": "Kolkata",
+      "latitude": 22.56263,
+      "longitude": 88.36304,
+      "elevation": 11.0,
+      "feature_code": "PPLA",
+      "country_code": "IN",
+      "admin1_id": 1252881,
+      "admin2_id": 1275005,
+      "admin3_id": 12682799,
+      "timezone": "Asia/Kolkata",
+      "population": 4631392,
+      "country_id": 1269750,
+      "country": "India",
+      "admin1": "West Bengal",
+      "admin2": "Kolkata",
+      "admin3": "Kolkata"
+    }
+  ],
+  "generationtime_ms": 0.43809414
+}

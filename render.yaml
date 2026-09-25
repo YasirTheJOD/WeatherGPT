@@ -1,0 +1,43 @@
+# WeatherGPT — a permanent public URL on Render's free plan (no credit card).
+#
+# One service serves BOTH the API and the built Flutter PWA from a single origin.
+# That is why there is no CORS configuration here and no API URL baked into the
+# frontend bundle: the app calls whatever origin served it (see
+# docs/DEPLOYMENT.md §4b, §9). It also means the deployment survives Render
+# handing us a different hostname than we guessed.
+#
+# `flutter build web` is deliberately NOT part of this build: the bundle is
+# committed (frontend/build/web, ~4.6 MB, built by scripts/build_web.sh), so the
+# deploy is just `pip install` and cannot fail on a Flutter toolchain.
+#
+# First deploy: Render Dashboard -> New + -> Blueprint -> pick this repo -> Apply.
+# Full runbook, tradeoffs and troubleshooting: docs/DEPLOYMENT.md §9.
+
+services:
+  - type: web
+    name: weathergpt
+    runtime: python
+    plan: free # 0.1 CPU / 512 MB — plenty for this; sleeps after 15 min idle
+    region: singapore # closest to India; drop this line if Render rejects it
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install ./backend
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: WEB_DIR # <- this is what makes it one origin: the API serves the PWA
+        value: ../frontend/build/web
+      # The free plan has no Redis. With rate limiting on, every request pays a
+      # ~2s failed Redis connect before failing open — and it never rejects
+      # anything anyway. Off is the honest setting here, not a bypass.
+      - key: RATE_LIMIT_ENABLED
+        value: "false"
+      # Optional — each is a config change, not a rework:
+      # - key: IMD_API_KEY       # once IMD grants the key (docs/IMD-ACCESS.md)
+      #   sync: false            # sync: false -> set the value in the dashboard
+      # - key: LLM_PROVIDER      # groq | openai | gemini, for more fluent prose
+      #   value: groq
+      # - key: GROQ_API_KEY
+      #   sync: false

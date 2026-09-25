@@ -1,0 +1,103 @@
+# WeatherGPT — container stack (Phase 7 deployment).
+# Full runbook, production notes and troubleshooting: docs/DEPLOYMENT.md
+#
+# 1) Configure (once):
+#      cp .env.example .env          # IMD_API_KEY is optional; everything else has defaults
+#
+# 2) API + PostGIS + Redis:
+#      docker compose -f infra/docker-compose.yml up --build -d
+#      -> API   http://localhost:8000/docs
+#      -> Health http://localhost:8000/api/v1/health
+#      -> Sources http://localhost:8000/api/v1/sources
+#
+# 3) Full demo — also serve the Flutter web PWA through nginx (reverse proxy):
+#      cd frontend && flutter build web --release --dart-define=API_BASE_URL=http://localhost:8080
+#      docker compose -f infra/docker-compose.yml --profile web up --build -d
+#      -> App   http://localhost:8080
+#
+# Notes:
+#   * Postgres/Redis are deliberately NOT published to the host; reach them with
+#       docker compose -f infra/docker-compose.yml exec postgis psql -U weathergpt
+#   * `.env` values are injected into the container by `env_file`; the in-cluster
+#     URLs below override the localhost defaults from .env (service names, not
+#     interpolation, so a root .env works regardless of where you run compose).
+#   * The backend container runs `init_db` (idempotent) before starting uvicorn,
+#     so schema + seeds are applied on every boot.
+
+name: weathergpt
+
+services:
+  backend:
+    build:
+      context: ../backend
+    image: weathergpt-backend:local
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # Inside the compose network the services are addressed by name.
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://weathergpt:weathergpt@postgis:5432/weathergpt
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - python -m app.scripts.init_db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Healthcheck comes from the image (backend/Dockerfile).
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: weathergpt
+      POSTGRES_PASSWORD: weathergpt
+      POSTGRES_DB: weathergpt
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weathergpt -d weathergpt"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Cache + rate-limit counters only: persistence would buy us nothing here.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Optional: nginx serving the built Flutter web PWA and proxying /api to the
+  # backend on the same origin (so the browser never needs CORS). Enable with
+  # `--profile web` after `flutter build web`.
+  web:
+    profiles: ["web"]
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend/build/web:/usr/share/nginx/html:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pgdata:

@@ -1,0 +1,23 @@
+# Line endings: developed on Windows, deployed on Linux (Render, containers,
+# bash). Git must store LF in the repository for text files, or a CRLF
+# `scripts/build_web.sh`, Dockerfile or nginx.conf reaches Linux and breaks:
+#   bash: $'\r': command not found
+#   nginx: [emerg] unknown directive "server\r"
+# `* text=auto eol=lf` normalises every text file to LF in the repo *and* checks
+# it out as LF, so a Windows working copy can never reintroduce CRLF in a commit.
+# (Binary files are unaffected: `text=auto` only applies to content git detects
+# as text.)
+* text=auto eol=lf
+
+# The committed Flutter web bundle is generated output — never rewrite its bytes.
+frontend/build/web/** -text
+
+# Fonts and images in the bundle are binary, and so is anything else git would
+# otherwise guess wrong about.
+*.png binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.wasm binary

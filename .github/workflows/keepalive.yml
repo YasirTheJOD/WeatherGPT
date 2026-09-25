@@ -1,0 +1,45 @@
+# Keep the free Render instance awake.
+#
+# A free Render web service sleeps after 15 minutes idle, and the first request
+# after that waits ~40-60s for it to boot. For a shared demo link that is a bad
+# first impression, so this pings `/api/v1/health` every 10 minutes.
+#
+# Notes:
+#  * `/api/v1/health` is exempt from rate limiting and touches no third-party API
+#    (it reports configured providers, it does not call them), so this is cheap.
+#  * **A public repository is strongly preferred for this.** Actions minutes are
+#    free and unlimited on public repos; on a private repo each of these tiny runs
+#    still rounds up to 1 billed minute, so every-10-minutes is ~4,300 minutes a
+#    month against GitHub's 2,000 free minutes. If the repo must be private, either
+#    accept the overage, drop to a slower schedule (the instance then sleeps between
+#    pings, which defeats the point), or point a free external uptime pinger at the
+#    health URL instead and delete this file.
+#  * GitHub disables scheduled workflows in a repository after ~60 days without
+#    activity — re-enable it from the Actions tab if that happens.
+#  * If Render gave the service a different name (the URL was taken), update the
+#    URL below to match: it is shown at the top of the service's dashboard page.
+
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the API
+        run: |
+          url="https://weathergpt.onrender.com/api/v1/health"
+          for attempt in 1 2 3; do
+            if curl -fsS --max-time 90 "$url"; then
+              echo
+              echo "awake (attempt $attempt)"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::warning::$url did not answer — check the Render dashboard"
+          exit 1

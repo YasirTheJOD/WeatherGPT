@@ -1,0 +1,27 @@
+{
+  "latitude": 22.601053,
+  "longitude": 88.31776,
+  "generationtime_ms": 0.3039836883544922,
+  "utc_offset_seconds": 19800,
+  "timezone": "Asia/Kolkata",
+  "timezone_abbreviation": "GMT+5:30",
+  "elevation": 12.0,
+  "daily_units": {
+    "time": "iso8601",
+    "weather_code": "wmo code",
+    "temperature_2m_max": "°C",
+    "temperature_2m_min": "°C",
+    "precipitation_sum": "mm",
+    "relative_humidity_2m_mean": "%",
+    "wind_speed_10m_max": "km/h"
+  },
+  "daily": {
+    "time": ["2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12"],
+    "weather_code": [96, 96, 96, 96, 95, 95, 53],
+    "temperature_2m_max": [32.8, 31.6, 31.0, 31.8, 32.0, 30.4, 30.8],
+    "temperature_2m_min": [26.2, 26.4, 26.4, 25.8, 25.8, 25.9, 25.8],
+    "precipitation_sum": [6.2, 13.4, 14.1, 7.1, 10.0, 5.7, 4.2],
+    "relative_humidity_2m_mean": [83, 90, 90, 88, 89, 88, 88],
+    "wind_speed_10m_max": [8.6, 11.2, 9.5, 5.6, 8.4, 12.8, 12.2]
+  }
+}

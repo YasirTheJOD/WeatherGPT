@@ -1,0 +1,1 @@
+"""Alert providers — SACHET/NDMA CAP feed (IMD warning API lands in Phase 4)."""

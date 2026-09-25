@@ -1,0 +1,26 @@
+{
+  "_note": "SYNTHETIC SAMPLE — NOT real IMD data. Used only to exercise the station-resolution code path until a live cityforecast_mapping capture is stored (see docs/IMD-ACCESS.md and backend/data/README.md).",
+  "stations": [
+    {
+      "Station_Code": "SMPL001",
+      "Station_Name": "Kolkata (sample)",
+      "State": "West Bengal",
+      "Latitude": 22.57,
+      "Longitude": 88.36
+    },
+    {
+      "Station_Code": "SMPL002",
+      "Station_Name": "Delhi (sample)",
+      "State": "Delhi",
+      "Latitude": 28.61,
+      "Longitude": 77.21
+    },
+    {
+      "Station_Code": "SMPL003",
+      "Station_Name": "Mumbai (sample)",
+      "State": "Maharashtra",
+      "Latitude": 19.08,
+      "Longitude": 72.88
+    }
+  ]
+}

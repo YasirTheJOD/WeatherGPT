@@ -1,0 +1,1 @@
+"""Maintenance scripts (init_db, ...). Run via `python -m app.scripts.<name>`."""
