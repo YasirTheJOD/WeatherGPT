@@ -1,16 +1,19 @@
 # RESUME — Phase 8 (SIH demo) handoff
 
-> Last worked: 2026-09-24. Pick up exactly where we stopped.
+> Last worked: 2026-09-25. Pick up exactly where we stopped.
 
 ## Where we are
 
-**Phase 8 — demo script written, failure drills rehearsed again on 2026-09-24 (all three
-modes 8/8, exit 0, live data). Work stopped here at a deliberate feature freeze: every phase
-is complete, and the one claim the repo cannot back yet is the container deploy (this
-environment still has no Docker).**
+**Phase 8 complete and now *published*: the app is live at
+https://weathergpt-7vnu.onrender.com, and the deploy was verified with `demo_smoke` against
+the public origin rather than a local uvicorn. That rehearsal found a real bug — and it was
+not in our code. Open-Meteo rate-limits shared hosting egress (0/18 requests over ~110s), so
+the weather chain now carries a second keyless fallback (MET Norway). All three rehearsal
+modes are 8/8 again.**
 
-**Next session: a real `docker compose up` on a machine that has Docker, then demo day — not
-another feature.**
+**The one claim still unbacked is the Docker compose path (this environment has no Docker).
+Next session: a real `docker compose up` on a Docker machine, then demo day — not another
+feature.**
 
 | Phase | Status |
 |-------|--------|
@@ -23,10 +26,108 @@ another feature.**
 | 7 Deployment — compose stack (api + PostGIS + Redis, optional nginx web profile) + runbook | ✅ |
 | **8 SIH demo — run sheet + rehearsed failure drills (`docs/DEMO.md`, `app/scripts/demo_smoke.py`)** | ✅ (rehearsed 2026-09-19) |
 
-Backend: **188 passed, 1 skipped** (live-network test, needs `RUN_LIVE_TESTS=1`).
-Frontend: `flutter analyze` clean, **95 passed, 0 failing**.
+Backend: **204 passed, 2 skipped** (live-network tests, need `RUN_LIVE_TESTS=1`).
+Frontend: `flutter analyze` clean, **95 passed, 0 failing** — no frontend change this session.
 
-## What changed this session (2026-09-24)
+## What changed this session (2026-09-25)
+
+### The deploy is real — and it immediately exposed what localhost could not
+
+The app is live at **https://weathergpt-7vnu.onrender.com**. Steps: `git remote add origin
+https://github.com/YasirTheJOD/WeatherGPT.git`, `git branch -M main`, an initial commit (the
+tree had been *staged for days but never committed*, so the first `git push` had nothing to
+send — that was the whole blocker), `git push -u origin main`, then Render → New + →
+Blueprint → pick the repo → Apply.
+
+The first thing checked was the claim the repo had never backed: `demo_smoke` against a
+**public origin** instead of a local uvicorn. It scored **5/8**.
+
+Every failure was a weather scenario. Health, `/sources`, SACHET alerts, geocoding,
+Devanagari resolution and the safety scenario all passed:
+
+```
+[FAIL] scenario 1 · current weather (English)   no observation card
+[FAIL] scenario 2 · Hinglish forecast           no forecast card
+[FAIL] scenario 5 · Devanagari question         no forecast cards: I don't have live data…
+```
+
+The response body named the culprit:
+
+```
+open-meteo: Open-Meteo request failed: Client error '429 Too Many Requests' for url
+'https://api.open-meteo.com/v1/forecast?...'
+```
+
+### Root cause: a per-IP concurrency limit meeting shared hosting egress
+
+Open-Meteo's free terms allow **one concurrent request per IP** (5 queued before `429`). On
+Render's free plan the egress IP is shared with other tenants, so that budget is spent before
+we ever get it. Measured, not assumed:
+
+| Probe | Result |
+|-------|--------|
+| Deploy → `api.open-meteo.com`, 18 attempts over ~110s | **0 succeeded** (18 × `429`) |
+| Deploy → `geocoding-api.open-meteo.com` (same deploy, different host) | `200` |
+| This dev machine → `api.open-meteo.com` (identical request) | `200` in 1.4s |
+| SACHET alerts, `/sources`, `/weather/*` from the deploy | reachable (the 429 came from the vendor) |
+
+So the deploy's networking was healthy and the code was healthy. Worth stating plainly:
+**this was not a regression, and the app behaved exactly as designed.** The provider chain
+fell back, the honest *"I don't have live data for that right now."* gap answer appeared, and
+everything not dependent on that one host kept working — Phase 6's resilience work turned a
+dead vendor into a partial degradation instead of a crash. But with a single fallback,
+"degraded" still means the headline feature is missing.
+
+### Fix: a second keyless weather fallback (MET Norway)
+
+The chain promised resilience; one fallback is not redundancy. `MetNorwayProvider`
+(`api.met.no`) now sits behind Open-Meteo, and it costs nothing: **no account, no key, no
+whitelist, no card** — its terms require only a descriptive `User-Agent`, which preserves the
+zero-keys property that ruled out every keyed/paid option.
+
+- `backend/app/providers/weather/met_norway.py` — the adapter. Two normalizations are stated
+  in the module docstring because MET Norway is a *forecast model*, not an observation
+  source: `rainfall_24h_mm` is the sum of the **next 24 entries** (forecast rainfall, not an
+  observed total), and daily values are bucketed into **Asia/Kolkata** days. The series thins
+  from hourly to 6-hourly a few days out; since each `precipitation_amount` covers the
+  interval up to the *next* entry, per-day summing stays correct at either granularity.
+  Condition text comes from `symbol_code` (day/night variants folded) and `weather_code`
+  stays `null` — never invented.
+- Fixed UTC+05:30 instead of `zoneinfo`: India has no DST so it is exact, and it avoids a
+  `tzdata` dependency (Windows ships no IANA database — a real trap on this machine).
+- `config.py` (`MET_NORWAY_BASE_URL`, `MET_NORWAY_USER_AGENT`), `main.py` (chain order
+  IMD → Open-Meteo → MET Norway), `services/sources/registry.py` (`met_no`, so the drawer and
+  `/sources` tell the truth about it), `.env.example`.
+- `backend/fixtures/met_norway_kolkata_compact.json` — captured real response, trimmed to the
+  7 local days a `days=7` forecast uses, keeping both the hourly and the 6-hourly portions.
+
+**The frontend needed no change at all.** The sources drawer and the status pill already had
+explicit `_ =>` fallbacks for unknown source ids, so a new backend source renders without a
+Flutter rebuild — which also kept the committed web bundle untouched.
+
+Tests (188 → **204 passed**, 2 skipped). The important one is the regression:
+`test_chain_falls_through_to_met_norway_when_open_meteo_is_rate_limited` — a registry with a
+429-ing Open-Meteo ahead of MET Norway must serve `met-no`, not raise. Plus
+`test_app_provider_chain_wires_met_norway_after_open_meteo`, which pins the *actual* wiring
+order (the fall-through test builds its own registry, so it would happily pass with `main.py`
+unwired). I checked the daily-bucketing test is load-bearing by mutating the IST offset to
++00:30 — it fails (`rainfall 3.3` vs `2.5`) — then reverted.
+
+Registry is now **10 sources**, so the counts in the rehearsed tables below (`6/9`, `5/9`) are
+historical records of those runs; they read `7/10` and `6/10` now.
+
+Docs: `docs/DATA-SOURCES.md` §6 (the measurement, the verified interface, the honesty notes),
+README (live URL, updated source table, the one-origin design proven in production),
+`fixtures/README.md`.
+
+### Still unproven: the container path
+
+Render proved the *application*, not the image — no Docker build ran, because Render builds
+Python natively. README keeps the compose stack labelled *reviewed, not proven* and
+`docs/DEPLOYMENT.md` §9.6 still says so out loud. `render.yaml` also dodged the one line most
+likely to be rejected (`region: singapore`) without incident.
+
+## What changed in the 2026-09-24 session
 
 ### Publishable: permanent public URL, prepared end to end
 
@@ -534,6 +635,10 @@ cd backend && .venv/Scripts/python -m uvicorn app.main:app --reload
 # Demo rehearsal (see docs/DEMO.md) — needs a running API
 cd backend && .venv/Scripts/python -m app.scripts.demo_smoke --base-url http://localhost:8000
 
+# The same gate against the public deploy (a free instance sleeps after 15 min idle,
+# so warm it with one /api/v1/health call first)
+cd backend && .venv/Scripts/python -m app.scripts.demo_smoke --base-url https://weathergpt-7vnu.onrender.com
+
 # Frontend
 cd frontend && flutter analyze && flutter test      # 95/95 green
 cd frontend && flutter run -d chrome --web-port=5173
@@ -561,22 +666,19 @@ items finished in this session (localized quick picks, streamed answers) were bo
 that IN list. So: **fix what rehearsal breaks, do not add surface area.** Every real bug so
 far was found by rehearsing, not by adding features.
 
-1. **Verify the deploy for real** — the only unverified claim left. Smoke-run
+1. **Verify the container path for real** — still the only unverified claim. Smoke-run
    `docker compose -f infra/docker-compose.yml up --build`, then the `--profile web` path
-   after `flutter build web`. Once it is up, run `demo_smoke` against the **container**
-   (`--base-url http://localhost:8000`) — every rehearsal so far used a local uvicorn.
-   README labels the stack as *reviewed, not proven* until this passes. The static
-   cross-check above (deps, ports, proxy target, env coverage) reduces the blast radius to
-   "does it build", but it is not the same as a real `up`.
+   after `flutter build web`, and run `demo_smoke` against the **container**. The Render
+   deploy (item 3, now done) proved the application end to end, but by a different route: no
+   image was ever built. README keeps the stack labelled *reviewed, not proven*.
 2. **Demo day** — re-run all three `demo_smoke` modes in the morning (they take seconds) and
    confirm the pre-flight table in `docs/DEMO.md` §1, especially that IMD still reads
    `Requires authorization`.
-3. **Publish one shareable URL** — repository side done and verified: `render.yaml`,
-   committed 4.6 MB bundle, `scripts/build_web.sh`, keep-alive workflow, runbook in
-   `docs/DEPLOYMENT.md` §9. **Blocked on the user, not the code:** the code has to reach a
-   GitHub repo and the Render account has to exist. Exact next actions: `git remote add
-   origin …` + `git push`, then Render → New + → Blueprint → pick the repo → Apply. The
-   local commit is staged but **not committed** (waiting on a go-ahead).
+3. ~~**Publish one shareable URL**~~ — **done 2026-09-25.** Pushed to
+   `github.com/YasirTheJOD/WeatherGPT` and deployed via the Render Blueprint to
+   https://weathergpt-7vnu.onrender.com, then verified with `demo_smoke` against that origin.
+   Re-verify after any change to the provider chain: except for the Open-Meteo 429 the rest
+   of the deploy was green, so this URL is a working demo surface now — not just a showcase.
 
 ### Deliberately deferred (do not start these without a reason)
 

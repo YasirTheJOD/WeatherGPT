@@ -24,7 +24,8 @@ def test_sources_lists_the_curated_registry(sources_client):
     assert response.status_code == 200
     body = response.json()
     ids = [s["source_id"] for s in body["sources"]]
-    assert ids[:3] == ["imd", "open_meteo", "sachet"]
+    # Narrative order: primary, then the two keyless weather fallbacks, then the rest.
+    assert ids[:4] == ["imd", "open_meteo", "met_no", "sachet"]
     assert {"mosdac", "noaa_gfs", "geocoding_open_meteo", "bigdatacloud"} <= set(ids)
     assert body["counts"]["total"] == len(body["sources"])
     assert body["counts"]["available"] == sum(
@@ -48,6 +49,15 @@ def test_imd_flips_available_when_key_is_configured():
     sources = {s["source_id"]: s for s in client.get("/api/v1/sources").json()["sources"]}
     assert sources["imd"]["available"] is True
     assert sources["imd"]["available_message"] is None
+
+
+def test_met_norway_is_the_second_keyless_weather_fallback(sources_client):
+    sources = {s["source_id"]: s for s in sources_client.get("/api/v1/sources").json()["sources"]}
+    met_no = sources["met_no"]
+    assert met_no["available"] is True  # keyless: no key can be missing
+    assert met_no["official"] is False  # never presented as IMD-equivalent
+    assert met_no["status"] == "prototype"
+    assert met_no["evidence_url"]
 
 
 def test_official_sources_are_flagged(sources_client):

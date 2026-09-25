@@ -60,6 +60,19 @@ KNOWN_SOURCES: tuple[SourceDefinition, ...] = (
         notes="Used until the IMD key/whitelist is granted. GFS-derived point forecasts.",
     ),
     SourceDefinition(
+        source_id="met_no",
+        name="MET Norway (Locationforecast)",
+        role="Second keyless weather fallback, independent of Open-Meteo's per-IP rate limit",
+        status="prototype",
+        official=False,
+        auth="None (free, keyless — descriptive User-Agent required)",
+        url="https://www.met.no",
+        evidence_url="https://api.met.no/weatherapi/locationforecast/2.0/documentation",
+        notes="Added 2026-09-25 after measuring Open-Meteo return HTTP 429 to the "
+        "public deploy's shared egress IP (0/18 requests over ~110s). Global model "
+        "output — never presented as authoritative or as IMD data.",
+    ),
+    SourceDefinition(
         source_id="sachet",
         name="SACHET — NDMA National Disaster Alert Portal",
         role="Secondary official source of disaster warnings (CAP 1.2), with ETag caching",
@@ -147,6 +160,7 @@ def _availability(settings: Settings) -> dict[str, tuple[bool, str | None]]:
             None if settings.imd_configured else "IMD_API_KEY not set — running on the Open-Meteo fallback",
         ),
         "open_meteo": (True, None),
+        "met_no": (True, None),
         "sachet": (True, None),
         "geocoding_open_meteo": (True, None),
         "bigdatacloud": (True, None),

@@ -13,7 +13,7 @@ Team: United India · Organization: IMD / Ministry of Earth Sciences · Theme: D
 ## Repository layout
 
 ```
-backend/     FastAPI service — provider interfaces (IMD + Open-Meteo), typed payloads with
+backend/     FastAPI service — provider interfaces (IMD + Open-Meteo + MET Norway), typed payloads with
              provenance, provider chain with fallback, chat orchestrator + SSE,
              /health and /sources transparency, request IDs and fail-open rate limiting.
 frontend/    Flutter web PWA — shell, typed API client, weather/forecast cards, alerts,
@@ -87,14 +87,20 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §4b.
 
 ### Deployment (public URL, no Docker — Render free plan)
 
-The repo is ready to publish as a permanent public URL on Render's free plan (no credit
-card): one service serves the API and the PWA on one origin (`render.yaml`), the PWA bundle
-is committed so the host never runs Flutter, and a scheduled workflow keeps the free
-instance awake. Runbook: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §9.
+**Live:** <https://weathergpt-7vnu.onrender.com> — one service serves the API and the PWA
+on one origin, deployed from `render.yaml` (no Docker, no credit card). The PWA bundle is
+committed so the host never runs Flutter, and a scheduled workflow keeps the free instance
+awake. Runbook: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) §9.
 
-> The repository half is verified (the bundle boots in a browser and calls the API
-> same-origin; the service's exact start command passed `demo_smoke` 8/8 locally), but no
-> real Render deploy has been run yet — that needs an account and a push.
+> **Verified against the real deploy (2026-09-25):** the shell, `/api/v1/health`,
+> `/sources`, `/docs`, SACHET alerts, geocoding and Devanagari resolution all work over
+> HTTPS, so the one-origin `WEB_DIR` design is proven in production rather than locally.
+> One production finding: Open-Meteo's free tier allows **one concurrent request per IP**,
+> and shared hosting egress cannot reliably hold it — the deploy received `429` on
+> **0 of 18** requests over ~110s while the identical call from a residential IP returned
+> 200. That is why the weather chain now carries **two** keyless fallbacks (see
+> [`docs/DATA-SOURCES.md`](docs/DATA-SOURCES.md) §6). The Docker compose path is still
+> *reviewed, not proven* — this deploy took a different route.
 
 ### Deployment (full stack, Docker)
 
@@ -119,7 +125,7 @@ rate limiting behind a proxy) and troubleshooting: [`docs/DEPLOYMENT.md`](docs/D
 ```bash
 cd backend
 pytest                     # hermetic — fixture-based, no network
-RUN_LIVE_TESTS=1 pytest    # additionally runs live Open-Meteo tests
+RUN_LIVE_TESTS=1 pytest    # additionally runs live Open-Meteo + MET Norway tests
 ```
 
 Demo rehearsal (needs a running API, exits non-zero on any failure — it is the pre-demo
@@ -158,12 +164,13 @@ cd backend && python -m app.scripts.demo_smoke --base-url http://localhost:8000 
   quick picks render in Devanagari under the Hindi locale while still searching the
   canonical Latin name (the geocoder is Latin-only, so the label must never be the query).
 
-## Verified data sources (2026-09-06)
+## Verified data sources (2026-09-06, updated 2026-09-25)
 
 | Source | Status | Role |
 |--------|--------|------|
 | IMD `api.imd.gov.in` | Requires authorization (API key; IP whitelist per IMD docs) | Primary authoritative obs/forecast/warnings |
-| Open-Meteo | Prototype — free, keyless | Fallback + geocoding (GFS-derived) |
+| Open-Meteo | Prototype — free, keyless | First weather fallback + geocoding (GFS-derived) |
+| MET Norway `api.met.no` | Prototype — free, keyless, **live-verified 2026-09-25** | Second weather fallback — independent of Open-Meteo's per-IP limit |
 | SACHET CAP feed | Prototype — **live-verified** (RSS index + CAP detail + location alerts, ETag caching) | Secondary official warnings |
 | MOSDAC / GFS raw | Requires authorization / Planned | Future scope |
 

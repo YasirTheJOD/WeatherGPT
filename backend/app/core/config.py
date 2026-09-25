@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     # Open-Meteo — free, keyless, GFS-derived (resilience / fallback layer)
     open_meteo_base_url: str = "https://api.open-meteo.com"
 
+    # MET Norway Locationforecast — free, keyless, global. The SECOND weather
+    # fallback, and the reason it exists: Open-Meteo's free tier allows ONE
+    # concurrent request per IP, which shared hosting egress cannot reliably
+    # get (measured 2026-09-25: 0/18 requests, all HTTP 429, from Render's free
+    # plan). MET Norway's terms require a User-Agent identifying the app —
+    # replace the contact URL with a real one if you fork this.
+    met_norway_base_url: str = "https://api.met.no"
+    met_norway_user_agent: str = (
+        "WeatherGPT/0.1 (SIH 2026 prototype; +https://github.com/YasirTheJOD/WeatherGPT)"
+    )
+
     # SACHET — NDMA National Disaster Alert Portal (public CAP feed, ETag caching)
     sachet_base_url: str = "https://sachet.ndma.gov.in"
     sachet_feed_path: str = "cap_public_website/rss/rss_india.xml"

@@ -11,6 +11,7 @@
 |--------|--------------------------|---------------|--------------------|-------------|----------|
 | **IMD API Management Platform** (`api.imd.gov.in`) | **Requires authorization** — live probe (2026-09-06) returned `{"error":"API key missing"}`; apply early; strongest data | **API key** (auth mechanism TBD — header vs query param) + IP whitelisting per IMD docs | Official REST API reference, endpoints verified | **Primary** authoritative observations, forecasts, district warnings | [API reference](https://api.imd.gov.in/public/api_reference.html), [IMD APIs page](https://mausam.imd.gov.in/responsive/apis.php), [access checklist](IMD-ACCESS.md) |
 | **Open-Meteo** | **Prototype** (works today, no key) | None (free, non-commercial) | Forecast / geocoding / historical APIs | **Fallback + resilience layer** (GFS-derived), geocoding; **not** an IMD substitute | [open-meteo.com](https://open-meteo.com/), [docs](https://open-meteo.com/en/docs) |
+| **MET Norway Locationforecast** (`api.met.no`) | **Prototype (verified live 2026-09-25)** | None (free, keyless — their terms require a descriptive `User-Agent`) | `GET /weatherapi/locationforecast/2.0/compact?lat&lon` → GeoJSON `properties.timeseries[]` (hourly at first, 6-hourly later): air_temperature, relative_humidity, wind_speed (m/s), wind_from_direction, air_pressure_at_sea_level; `next_1_hours`/`next_6_hours` `symbol_code` + `precipitation_amount` | **Second weather fallback** — added because Open-Meteo's free tier rate-limits shared hosting egress; see §6 | [docs](https://api.met.no/weatherapi/locationforecast/2.0/documentation), [terms](https://api.met.no/doc/TermsOfService) |
 | **SACHET / NDMA CAP feed** (`sachet.ndma.gov.in`) | **Prototype (verified live 2026-09-06)** — public, no auth | None | RSS index `cap_public_website/rss/rss_india.xml` (ETag + Last-Modified); per-alert CAP 1.2 XML via `FetchXMLFile?identifier=<guid>`; location alerts via `FetchLocationWiseAlerts`; mandatory ETag-based caching (official guide) | Secondary official warning source (alerts + advisory context); ETag caching implemented | [SACHET portal](https://sachet.ndma.gov.in/), [Integration Guide PDF](https://sachet.ndma.gov.in/docs/Integration_Guide_For_Agencies.pdf) |
 | **MOSDAC (ISRO/SAC)** | **Requires authorization; Future scope** | MOSDAC account (registration + approval), username/password | Bulk satellite-data download API (Python `mdapi.py` + `config.json`, 5,000 files/day cap) | Not needed for MVP core; future satellite imagery / cyclone layers | [Download API manual](https://mosdac.gov.in/downloadapi-manual), [portal](https://mosdac.gov.in/) |
 | **NOAA GFS (NOMADS / AWS Open Data)** | **Available; Planned** (public, heavy GRIB2) | None | AWS S3 `noaa-gfs-bdp-pds`, NOMADS | Future NWP / model map layers; **not** MVP | [AWS registry](https://registry.opendata.aws/noaa-gfs-bdp-pds/) |
@@ -90,6 +91,48 @@ Secondary source of **official disaster warnings** (alerts pass through untouche
 
 - Public and free via AWS Open Data (`s3://noaa-gfs-bdp-pds`, 0.25°/0.5° grids, trailing ~30 days) and NOMADS.
 - Role: **Planned** — future model-output map layers. Raw GRIB ingestion is out of MVP scope (Open-Meteo already provides GFS-derived point forecasts).
+
+---
+
+## 6. MET Norway Locationforecast — VERIFIED (2026-09-25)
+
+Added to the weather chain as a **second keyless fallback**, beside Open-Meteo (§2). No key, account, whitelist or card is involved, so the zero-keys demo property is preserved.
+
+### Why it exists — the measurement
+
+Deploying to Render's free plan surfaced a limitation that local development cannot show. Open-Meteo's free terms allow **10,000 calls/day, 5,000/hour, 600/minute — and one concurrent request per IP**, with only 5 queued before the API answers `429`. On shared hosting egress that budget belongs to every tenant on the address.
+
+Measured 2026-09-25 against the live deploy (`https://weathergpt-7vnu.onrender.com`):
+
+| Probe | Result |
+|-------|--------|
+| Deploy → `api.open-meteo.com`, 18 attempts over ~110s | **0 succeeded** (18 × `429`) |
+| Deploy → `geocoding-api.open-meteo.com` (different host, same deploy) | `200` |
+| Residential IP → `api.open-meteo.com` (identical request) | `200` in 1.4s |
+
+So neither the deploy's networking nor the application code was at fault — one vendor's per-IP limiter was saturated. With a single fallback the weather is simply down; the chain is what turns an upstream rate limit into a degraded-but-honest answer.
+
+### Verified interface
+
+| Endpoint | Method | Verified behaviour |
+|----------|--------|--------------------|
+| `weatherapi/locationforecast/2.0/compact?lat=<4dp>&lon=<4dp>` | GET | `200` + GeoJSON `Feature`. `properties.timeseries[]` carries `instant.details` (air_temperature, relative_humidity, wind_speed in **m/s**, wind_from_direction in degrees, air_pressure_at_sea_level, cloud_area_fraction) plus `next_1_hours` / `next_6_hours` / `next_12_hours` (`summary.symbol_code`, `details.precipitation_amount` in mm). |
+
+Behaviour the adapter must handle:
+
+- **The series thins out.** Hourly at first (~63 entries), then 6-hourly a few days out, so the finest available period is always used. Each `precipitation_amount` covers the interval up to the *next* entry, which makes per-day summing correct at either granularity.
+- **A descriptive `User-Agent` is required by their terms** (a generic library default is refused). Configured via `MET_NORWAY_USER_AGENT`, which points at this repo.
+- **Symbol codes, not WMO codes** — condition text is mapped from `symbol_code` (day/night/polartwilight variants folded), and `weather_code` is left `null` rather than invented.
+- Local days are bucketed at **Asia/Kolkata** (fixed UTC+05:30 — exact, since India has no DST, and it avoids a `tzdata` dependency).
+
+### Role in MVP and honesty notes
+
+Second fallback for current conditions and daily forecasts, behind IMD and Open-Meteo. MET Norway is a **forecast model, not an observation source** — as with Open-Meteo it is never presented as authoritative or as IMD data. Two fields are forecast-derived and documented as such in `backend/app/providers/weather/met_norway.py`:
+
+- `rainfall_24h_mm` on the current observation is the sum of the **next 24 entries** — forecast rainfall for the coming 24h, *not* an observed 24h total.
+- `daily_forecast` aggregates each local day's own entries (max/min temperature, summed precipitation, mean humidity, max wind).
+
+Fixture: `backend/fixtures/met_norway_kolkata_compact.json` (captured real response, trimmed to the 7 local days a `days=7` forecast uses).
 
 ---
 

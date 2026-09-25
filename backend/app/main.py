@@ -20,6 +20,7 @@ from app.providers.alerts.sachet import SachetAlertProvider
 from app.providers.base import ProviderRegistry
 from app.providers.llm import build_llm_provider
 from app.providers.weather.imd import IMDProvider
+from app.providers.weather.met_norway import MetNorwayProvider
 from app.providers.weather.open_meteo import OpenMeteoProvider
 from app.services.location.alias_index import AliasIndex
 from app.services.location.geocoder import BigDataCloudReverseGeocoder, OpenMeteoGeocoder
@@ -36,13 +37,18 @@ logger = logging.getLogger("app.web")
 def build_registry(
     settings: Settings, station_index: StationIndex | None = None
 ) -> ProviderRegistry:
-    """Provider chain: IMD (authoritative) first, Open-Meteo as fallback,
-    with the validation gate + Redis cache attached. Ordering is the
-    preference policy — swap or extend here, not in callers."""
+    """Provider chain: IMD (authoritative) first, then Open-Meteo and MET Norway
+    as keyless fallbacks, with the validation gate + Redis cache attached.
+    Ordering is the preference policy — swap or extend here, not in callers.
+
+    Two fallbacks is deliberate, not belt-and-braces: a single vendor's rate
+    limiter must not be able to take the weather down (see met_norway.py).
+    """
     return ProviderRegistry(
         [
             IMDProvider(settings, station_index=station_index),
             OpenMeteoProvider(settings),
+            MetNorwayProvider(settings),
         ],
         validator=ValidationService(),
         cache=CacheService(settings.redis_url),

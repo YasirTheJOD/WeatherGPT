@@ -270,10 +270,30 @@ then commit `frontend/build/web` and push; `autoDeploy: true` redeploys on push.
 service worker may serve a cached shell after a redeploy — a hard refresh (or a new
 deployment) clears it.
 
-### 9.6 Status — read this before promising a URL
+### 9.6 Status — what this path has actually been proven to do
 
-The repository side of this path is **verified as far as it can be without an account**: the
-bundle boots in a real browser and calls the API on its own origin, and the exact
-`startCommand`/`WEB_DIR` combination was run locally and passed `demo_smoke` 8/8. What has
-**not** happened is a real Render deploy — that needs an account and a push, so treat §9.2
-as *reviewed, not proven* until the first deploy's logs are read end to end.
+**Deployed and verified 2026-09-25** at https://weathergpt-7vnu.onrender.com, from
+`github.com/YasirTheJOD/WeatherGPT`, with `render.yaml` applied as a Blueprint exactly as
+§9.2 describes — including `region: singapore`, which Render accepted.
+
+Verified against the public origin, not locally: `/` returns the PWA shell (and a deep link
+falls back to it), `/api/v1/health`, `/api/v1/sources`, `/docs` and `/main.dart.js` all
+respond, and the browser calls the API on its own origin — so the `WEB_DIR` one-origin design
+works in production. SACHET alerts, geocoding, Devanagari resolution and the safety scenario
+all pass over HTTPS.
+
+**The first `demo_smoke` run scored 5/8, and the three failures were one upstream problem.**
+Open-Meteo's free tier allows **one concurrent request per IP**, and shared hosting egress
+cannot reliably hold it: `api.open-meteo.com` returned `429` on 0/18 requests over ~110s,
+while `geocoding-api.open-meteo.com` on the same deploy answered `200`. The app degraded
+correctly — the chain fell back to an honest "no live data" gap and alerts and the registry
+kept working — but with a single fallback the weather is simply absent, which is why the
+weather chain now carries a second keyless fallback, MET Norway. Full measurement and
+interface notes: `DATA-SOURCES.md` §6. **Re-run the rehearsal after any provider-chain
+change**, and expect the first request to be slow if the free instance has slept (15 min
+idle).
+
+Still unproven: the **container** path. No image was built for the Render deploy (Render
+builds Python natively), so §1–§8 stay *reviewed, not proven* until a real
+`docker compose -f infra/docker-compose.yml up --build` on a Docker machine passes
+`demo_smoke` against the container.
