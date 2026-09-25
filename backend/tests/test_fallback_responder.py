@@ -2,6 +2,8 @@
 
 from datetime import datetime, timezone
 
+import pytest
+
 from app.domain.chat import EvidenceBundle
 from app.domain.models import (
     Alert,
@@ -71,6 +73,23 @@ async def test_observation_answer_interpolates_evidence_numbers():
     assert "wind 13 km/h S" in text  # 12.6 rounds to 13
     assert "pressure 1008 hPa" in text
     assert "rain 2.3 mm" in text
+
+
+@pytest.mark.parametrize(
+    ("basis", "expected"),
+    [
+        ("observed_24h", "rain 2.3 mm (last 24h)"),
+        ("forecast_24h", "rain 2.3 mm (next 24h)"),
+        ("instant", "rain 2.3 mm (now)"),
+        (None, "rain 2.3 mm"),
+    ],
+)
+async def test_rain_phrase_states_the_window_the_source_actually_gave(basis, expected):
+    """One field, three meanings — the prose must not imply an observation it lacks."""
+    text = await FallbackLLMProvider().grounded_response(
+        EvidenceBundle(observation=_observation(rainfall_basis=basis)), "weather"
+    )
+    assert expected in text
 
 
 async def test_forecast_answer_uses_day_offset_and_part_of_day():

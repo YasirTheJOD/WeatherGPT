@@ -254,6 +254,24 @@ abstract class AppLocalizations {
   /// **'Rain (24h)'**
   String get rainfall24h;
 
+  /// No description provided for @rainfallNext24h.
+  ///
+  /// In en, this message translates to:
+  /// **'Rain (next 24h)'**
+  String get rainfallNext24h;
+
+  /// No description provided for @rainfallNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Rain (now)'**
+  String get rainfallNow;
+
+  /// No description provided for @rainfallGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Rain'**
+  String get rainfallGeneric;
+
   /// No description provided for @observedAt.
   ///
   /// In en, this message translates to:

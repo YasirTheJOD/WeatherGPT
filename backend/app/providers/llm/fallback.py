@@ -21,6 +21,21 @@ _SEVERITY_RANK = {
     "Minor": 1,
 }
 
+# rainfall_24h_mm means different things per source (see WeatherObservation), so the
+# prose says which one it is rather than implying an observed 24h total for all of them.
+_RAINFALL_WINDOW = {
+    "observed_24h": " (last 24h)",
+    "forecast_24h": " (next 24h)",
+    "instant": " (now)",
+}
+
+
+def _rain_phrase(observation: WeatherObservation) -> str:
+    if observation.rainfall_24h_mm is None:
+        return ""
+    window = _RAINFALL_WINDOW.get(observation.rainfall_basis or "", "")
+    return f"rain {observation.rainfall_24h_mm:g} mm{window}"
+
 
 class FallbackLLMProvider:
     provider_id = "fallback"
@@ -66,7 +81,7 @@ class FallbackLLMProvider:
                 else ""
             ),
             f"pressure {o.pressure_hpa:.0f} hPa" if o.pressure_hpa is not None else "",
-            f"rain {o.rainfall_24h_mm:g} mm" if o.rainfall_24h_mm is not None else "",
+            _rain_phrase(o),
         ]
         details = [d for d in details if d]
         name = o.location_name or evidence.location_name or "your location"

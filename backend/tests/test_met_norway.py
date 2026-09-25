@@ -53,6 +53,8 @@ async def test_current_weather_parses_captured_response():
     # MET Norway publishes symbol codes, not WMO codes — never invented.
     assert obs.weather_code is None
     assert obs.rainfall_24h_mm == 7.0
+    # This one is a forecast for the *coming* 24h, not an observation.
+    assert obs.rainfall_basis == "forecast_24h"
     assert obs.provenance.source_id == "met-no"
     assert obs.provenance.authoritative is False
     assert obs.provenance.ttl_seconds == 300

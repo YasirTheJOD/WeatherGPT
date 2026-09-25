@@ -90,6 +90,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get rainfall24h => 'वर्षा (24 घंटे)';
 
   @override
+  String get rainfallNext24h => 'वर्षा (अगले 24 घंटे)';
+
+  @override
+  String get rainfallNow => 'वर्षा (अभी)';
+
+  @override
+  String get rainfallGeneric => 'वर्षा';
+
+  @override
   String get observedAt => 'देखा गया';
 
   @override

@@ -17,6 +17,7 @@ class WeatherObservation {
     this.weatherCode,
     this.conditionText,
     this.rainfall24hMm,
+    this.rainfallBasis,
     this.observedAt,
     required this.provenance,
   });
@@ -32,6 +33,12 @@ class WeatherObservation {
   final int? weatherCode;
   final String? conditionText;
   final double? rainfall24hMm;
+
+  /// What [rainfall24hMm] actually measures — `observed_24h` (IMD's past-24h
+  /// observation), `forecast_24h` (MET Norway's sum for the coming 24h) or
+  /// `instant` (Open-Meteo's current precipitation). Null when the source did
+  /// not declare it, in which case the UI must not claim a window either.
+  final String? rainfallBasis;
   final DateTime? observedAt;
   final Provenance provenance;
 
@@ -48,6 +55,7 @@ class WeatherObservation {
         weatherCode: json['weather_code'] as int?,
         conditionText: json['condition_text'] as String?,
         rainfall24hMm: (json['rainfall_24h_mm'] as num?)?.toDouble(),
+        rainfallBasis: json['rainfall_basis'] as String?,
         observedAt: json['observed_at'] is String
             ? DateTime.tryParse(json['observed_at'] as String)
             : null,

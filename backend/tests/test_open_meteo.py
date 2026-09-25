@@ -33,6 +33,8 @@ async def test_current_weather_parses_captured_response():
     assert obs.humidity_pct == 90
     assert obs.wind_speed_kmph == 5.2
     assert obs.condition_text == "Overcast"  # WMO code 3
+    # `current.precipitation` is instantaneous — never claimed as a 24h total.
+    assert obs.rainfall_basis == "instant"
     assert obs.provenance.source_id == "open-meteo"
     assert obs.provenance.authoritative is False
     assert obs.observed_at is not None

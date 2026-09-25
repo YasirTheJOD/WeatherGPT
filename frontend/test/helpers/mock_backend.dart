@@ -20,7 +20,7 @@ Map<String, dynamic> provenanceJson({
       'raw_endpoint': null,
     };
 
-Map<String, dynamic> observationJson() => {
+Map<String, dynamic> observationJson({String? rainfallBasis = 'observed_24h'}) => {
       'latitude': 22.57,
       'longitude': 88.36,
       'location_name': 'Kolkata',
@@ -32,6 +32,7 @@ Map<String, dynamic> observationJson() => {
       'weather_code': 3,
       'condition_text': 'Overcast',
       'rainfall_24h_mm': 2.3,
+      'rainfall_basis': rainfallBasis,
       'observed_at': '2026-09-07T08:30:00Z',
       'provenance': provenanceJson(),
     };
@@ -189,12 +190,18 @@ class TestBackend {
     this.noAlerts = false,
     this.ambiguousSearch = false,
     this.noSearchResults = false,
+    this.rainfallBasis = 'observed_24h',
   });
 
   bool failWeather;
   bool noAlerts;
   bool ambiguousSearch;
   bool noSearchResults;
+
+  /// What the fake source declares its rainfall number to be — one field carries
+  /// observed past-24h (IMD), forecast next-24h (MET Norway) or instantaneous
+  /// (Open-Meteo) values, and `null` means the source did not say.
+  String? rainfallBasis;
 
   late final MockClient client = MockClient((request) async {
     final path = request.url.path;
@@ -277,7 +284,7 @@ class TestBackend {
       }
       return http.Response(
         jsonEncode({
-          'observation': observationJson(),
+          'observation': observationJson(rainfallBasis: rainfallBasis),
           'provider_used': 'open-meteo',
           'validation': {'valid': true, 'issues': <Object>[]},
         }),

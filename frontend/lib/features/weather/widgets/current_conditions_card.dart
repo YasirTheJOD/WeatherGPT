@@ -109,7 +109,7 @@ class CurrentConditionsCard extends StatelessWidget {
                 if (o.rainfall24hMm != null)
                   _Metric(
                     icon: Icons.umbrella_outlined,
-                    label: l10n.rainfall24h,
+                    label: _rainfallLabel(l10n, o.rainfallBasis),
                     value: '${o.rainfall24hMm} mm',
                   ),
               ],
@@ -119,6 +119,18 @@ class CurrentConditionsCard extends StatelessWidget {
       ),
     );
   }
+
+  /// The same field carries three different things depending on the source, so the
+  /// label has to follow what the number *is*: observed past-24h rain (IMD), forecast
+  /// rain for the coming 24h (MET Norway) or instantaneous precipitation (Open-Meteo).
+  /// An undeclared basis gets a neutral label that claims no window at all.
+  static String _rainfallLabel(AppLocalizations l10n, String? basis) =>
+      switch (basis) {
+        'observed_24h' => l10n.rainfall24h,
+        'forecast_24h' => l10n.rainfallNext24h,
+        'instant' => l10n.rainfallNow,
+        _ => l10n.rainfallGeneric,
+      };
 
   static String _time(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');

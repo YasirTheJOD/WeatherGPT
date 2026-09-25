@@ -45,6 +45,8 @@ async def test_current_weather_parses_documented_schema():
     assert obs.weather_code == 63
     assert obs.condition_text == "Rain, not freezing, continuous moderate"
     assert obs.rainfall_24h_mm == 0.0
+    # IMD's "Last 24 hrs Rainfall" really is an observation of the past 24h.
+    assert obs.rainfall_basis == "observed_24h"
     assert obs.provenance.authoritative is True
     assert obs.provenance.source_id == "imd"
     assert obs.observed_at is not None

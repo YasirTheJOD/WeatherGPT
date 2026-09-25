@@ -78,6 +78,33 @@ void main() {
     expect(find.textContaining('As of'), findsWidgets);
   });
 
+  // The same field carries three different things depending on the source; the
+  // label must follow what the number is, and claim no window when none is given.
+  for (final (basis, label) in <(String?, String)>[
+    ('observed_24h', 'Rain (24h)'),
+    ('forecast_24h', 'Rain (next 24h)'),
+    ('instant', 'Rain (now)'),
+    (null, 'Rain'),
+  ]) {
+    testWidgets('rainfall is labelled by what the source declared ($basis)',
+        (tester) async {
+      final state = AppState()
+        ..setLocation(const SelectedLocation(
+          name: 'Kolkata',
+          latitude: 22.57,
+          longitude: 88.36,
+        ));
+
+      await tester.pumpWidget(
+          buildHarness(state, TestBackend(rainfallBasis: basis)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('2.3 mm'), findsOneWidget);
+      expect(find.text(label), findsOneWidget);
+    });
+  }
+
   testWidgets('failed fetch shows the backend message, retry recovers',
       (tester) async {
     final backend = TestBackend(failWeather: true);

@@ -257,6 +257,9 @@ class MetNorwayProvider:
             weather_code=None,
             condition_text=_symbol_text(_symbol_code(first)),
             rainfall_24h_mm=round(sum(amounts), 1) if amounts else None,
+            # Forecast for the *coming* 24h (see the module docstring) — declared so
+            # the UI cannot present it as an observed past-24h total.
+            rainfall_basis="forecast_24h",
             observed_at=_parse_iso(first.get("time")),
             provenance=self._provenance(_CURRENT_TTL_S),
         )

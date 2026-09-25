@@ -172,6 +172,8 @@ class IMDProvider:
             weather_code=code,
             condition_text=_IMD_WX_TEXT.get(code) if code is not None else None,
             rainfall_24h_mm=_f(rec.get("Last 24 hrs Rainfall")),
+            # IMD's field really is the observed rain of the past 24 hours.
+            rainfall_basis="observed_24h",
             observed_at=observed_at,
             provenance=Provenance(
                 source_id=self.provider_id,

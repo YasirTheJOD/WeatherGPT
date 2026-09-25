@@ -203,6 +203,13 @@ class TypedEndpointChatService extends ChatService {
     final result = await _weather.current(location);
     final o = result.observation;
 
+    // The backend declares what the rain number is; never claim a window it did not give.
+    final rainWindow = switch (o.rainfallBasis) {
+      'observed_24h' => ' (last 24h)',
+      'forecast_24h' => ' (next 24h)',
+      'instant' => ' (now)',
+      _ => '',
+    };
     final headline = <String>[
       if (o.temperatureC != null) '${o.temperatureC!.round()}°C',
       if (o.conditionText != null) o.conditionText!,
@@ -213,7 +220,7 @@ class TypedEndpointChatService extends ChatService {
         'wind ${o.windSpeedKmph!.round()} km/h'
             '${o.windDirection != null ? ' ${o.windDirection}' : ''}',
       if (o.pressureHpa != null) 'pressure ${o.pressureHpa!.round()} hPa',
-      if (o.rainfall24hMm != null) 'rain ${o.rainfall24hMm} mm (24h)',
+      if (o.rainfall24hMm != null) 'rain ${o.rainfall24hMm} mm$rainWindow',
     ];
 
     final name = o.locationName ?? location.name;

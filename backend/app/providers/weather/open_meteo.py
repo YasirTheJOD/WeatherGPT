@@ -119,6 +119,8 @@ class OpenMeteoProvider:
             weather_code=code,
             condition_text=_WMO_TEXT.get(code) if code is not None else None,
             rainfall_24h_mm=current.get("precipitation"),
+            # `current.precipitation` is instantaneous, NOT a 24h accumulation.
+            rainfall_basis="instant",
             observed_at=_parse_iso(current.get("time")),
             provenance=Provenance(
                 source_id=self.provider_id,

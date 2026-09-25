@@ -21,6 +21,10 @@ _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _CALENDAR_RE = re.compile(
     r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+\w{3}\b"
 )
+# Window wording we generate ourselves ("last 24h" / "next 24h"). The 24 is a unit
+# label, not a data value. Deliberately narrow: a bare "24" anywhere else still trips
+# the firewall, so this is not a loosening of the check.
+_WINDOW_LABEL_RE = re.compile(r"\b(?:last|next)\s+24\s?h\b", re.IGNORECASE)
 
 _ROUND_TOLERANCE = 0.05
 
@@ -64,7 +68,7 @@ def _matches(value: float, evidence_values: list[float]) -> bool:
 
 def check_provenance(text: str, evidence: EvidenceBundle) -> ProvenanceCheck:
     """Verify every data number in `text` exists in `evidence`."""
-    stripped = _CALENDAR_RE.sub(" ", text)
+    stripped = _WINDOW_LABEL_RE.sub(" ", _CALENDAR_RE.sub(" ", text))
     numbers = [
         float(m) for m in _NUMBER_RE.findall(stripped) if m not in ("0", "-0")
     ]

@@ -38,6 +38,16 @@ class WeatherObservation(BaseModel):
     weather_code: int | None = None
     condition_text: str | None = None
     rainfall_24h_mm: float | None = None
+    rainfall_basis: Literal["observed_24h", "forecast_24h", "instant"] | None = Field(
+        default=None,
+        description=(
+            "What rainfall_24h_mm actually measures — it is NOT the same thing per source. "
+            "IMD reports observed rainfall for the past 24h, MET Norway sums forecast "
+            "precipitation for the coming 24h, and Open-Meteo reports instantaneous "
+            "precipitation. Consumers must label the number from this field so a "
+            "forecast-derived value is never presented as an observed 24h total."
+        ),
+    )
     observed_at: datetime | None = None
     provenance: Provenance
 

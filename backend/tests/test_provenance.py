@@ -74,6 +74,29 @@ def test_calendar_label_does_not_trip_firewall():
     assert check.verified is True
 
 
+def test_generated_window_label_does_not_trip_firewall():
+    """"next 24h" is unit wording we emit ourselves, not a data value."""
+    check = check_provenance(
+        "Right now in Kolkata: 29°C — humidity 78%, rain 2.3 mm (next 24h).",
+        _observation_evidence(),
+    )
+    assert check.verified is True
+    assert check.unverified_numbers == []
+
+
+def test_bare_24_still_trips_the_firewall():
+    """The window exemption stays narrow — a stray 24 is still unverified.
+
+    Guards against the exemption being widened into a hole an LLM could use.
+    """
+    check = check_provenance(
+        "Right now in Kolkata: 29°C with 24 mm of rain.",
+        _observation_evidence(),
+    )
+    assert check.verified is False
+    assert "24" in check.unverified_numbers
+
+
 def test_decimal_matches_within_rounding():
     check = check_provenance(
         "Right now in Kolkata: 29.4°C, rain 2.3 mm.",

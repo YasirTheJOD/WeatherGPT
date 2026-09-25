@@ -91,6 +91,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rainfall24h => 'Rain (24h)';
 
   @override
+  String get rainfallNext24h => 'Rain (next 24h)';
+
+  @override
+  String get rainfallNow => 'Rain (now)';
+
+  @override
+  String get rainfallGeneric => 'Rain';
+
+  @override
   String get observedAt => 'Observed at';
 
   @override
