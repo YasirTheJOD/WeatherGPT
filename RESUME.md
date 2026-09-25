@@ -26,8 +26,8 @@ feature.**
 | 7 Deployment — compose stack (api + PostGIS + Redis, optional nginx web profile) + runbook | ✅ |
 | **8 SIH demo — run sheet + rehearsed failure drills (`docs/DEMO.md`, `app/scripts/demo_smoke.py`)** | ✅ (rehearsed 2026-09-19) |
 
-Backend: **204 passed, 2 skipped** (live-network tests, need `RUN_LIVE_TESTS=1`).
-Frontend: `flutter analyze` clean, **95 passed, 0 failing** — no frontend change this session.
+Backend: **210 passed, 2 skipped** (live-network tests, need `RUN_LIVE_TESTS=1`).
+Frontend: `flutter analyze` clean, **99 passed, 0 failing**.
 
 ## What changed this session (2026-09-25)
 
@@ -125,6 +125,34 @@ the **first** local day covers only the hours still ahead of it — late in the 
 narrow high/low (e.g. `25.9/25.2 °C`). Honest for "what's left of today", but the scripted demo
 prompts deliberately ask about day 2 and beyond, which are complete days. Documented in
 `DATA-SOURCES.md` §6.
+
+### Honesty fix: the rainfall label follows the source, not a guess
+
+A browser check of the live deploy surfaced something not defensible: the observation card
+labelled `rainfall_24h_mm` as **"Rain (24h)"** for every source, but that one field carries
+three different quantities.
+
+| Source | Underlying field | What it really is |
+|--------|------------------|-------------------|
+| IMD | `"Last 24 hrs Rainfall"` | observed rain for the past 24h — the label was right |
+| MET Norway | sum of the next 24 entries | **forecast** rain for the *coming* 24h |
+| Open-Meteo | `current.precipitation` | **instantaneous** precipitation, not a 24h total at all |
+
+So two of three sources presented a number as something it was not. `WeatherObservation` now
+declares `rainfall_basis` (`observed_24h` / `forecast_24h` / `instant`), every provider sets it,
+and every consumer labels from it: the conditions card, the deterministic responder's prose, the
+Dart transport-failure text (which also claimed `(24h)`) and both locales. An undeclared basis
+falls back to a neutral **"Rain"** that claims no window.
+
+The number firewall needed one deliberately narrow exemption: the window wording we generate
+(`last 24h` / `next 24h`) is a unit label, not data. `test_bare_24_still_trips_the_firewall` pins
+that a stray `24` anywhere else is still reported unverified, so this is not a hole. Verified
+live: the responder returns *"…pressure 1008 hPa, rain 7 mm (next 24h)."* with
+`provenance_check: {verified: true, unverified_numbers: []}`.
+
+Tests: 204 → **210 passed** (2 skipped); frontend 95 → **99 passed**, `flutter analyze` clean. The
+committed web bundle was rebuilt (`scripts/build_web.sh`, 4.6 MB), and the browser check confirms
+the deployed card now reads **`Rain (next 24h) 7 mm`**.
 
 ### Still unproven: the container path
 
