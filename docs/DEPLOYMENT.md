@@ -297,3 +297,9 @@ Still unproven: the **container** path. No image was built for the Render deploy
 builds Python natively), so §1–§8 stay *reviewed, not proven* until a real
 `docker compose -f infra/docker-compose.yml up --build` on a Docker machine passes
 `demo_smoke` against the container.
+
+The contract those sections rest on is now pinned statically by
+`backend/tests/test_container_assumptions.py` (27 tests: packaging, dependency closure,
+Linux-vs-Windows path traps, `.dockerignore` vs runtime needs, Dockerfile and compose
+coherence). That narrows the remaining risk to the image build and `init_db` — but it is not a
+substitute for the real `up`.

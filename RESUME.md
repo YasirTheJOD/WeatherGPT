@@ -26,7 +26,7 @@ feature.**
 | 7 Deployment — compose stack (api + PostGIS + Redis, optional nginx web profile) + runbook | ✅ |
 | **8 SIH demo — run sheet + rehearsed failure drills (`docs/DEMO.md`, `app/scripts/demo_smoke.py`)** | ✅ (rehearsed 2026-09-19) |
 
-Backend: **210 passed, 2 skipped** (live-network tests, need `RUN_LIVE_TESTS=1`).
+Backend: **237 passed, 2 skipped** (live-network tests, need `RUN_LIVE_TESTS=1`).
 Frontend: `flutter analyze` clean, **99 passed, 0 failing**.
 
 ## What changed this session (2026-09-25)
@@ -154,12 +154,47 @@ Tests: 204 → **210 passed** (2 skipped); frontend 95 → **99 passed**, `flutt
 committed web bundle was rebuilt (`scripts/build_web.sh`, 4.6 MB), and the browser check confirms
 the deployed card now reads **`Rain (next 24h) 7 mm`**.
 
-### Still unproven: the container path
+### Still unproven: the container path (Docker is still absent)
 
-Render proved the *application*, not the image — no Docker build ran, because Render builds
-Python natively. README keeps the compose stack labelled *reviewed, not proven* and
-`docs/DEPLOYMENT.md` §9.6 still says so out loud. `render.yaml` also dodged the one line most
-likely to be rejected (`region: singapore`) without incident.
+Asked on 2026-09-25 to close this by actually running the stack. **It still cannot be run
+here:** there is no `docker`, `podman`, `nerdctl` or `docker-compose` on this machine, and no
+WSL either. Installing Docker Desktop is a multi-GB, system-level change with admin rights, so
+it is not something to do unasked. The claim therefore stays *reviewed, not proven* — README
+and `docs/DEPLOYMENT.md` §9.6 still say so out loud.
+
+What was done instead: the static cross-check below became a **permanent test**,
+`backend/tests/test_container_assumptions.py` (27 tests), so the deploy contract cannot rot
+silently. It pins what the image and compose actually rely on:
+
+- **Packaging** — every runtime module lives in a directory setuptools would ship (a module
+  outside a package reaches no image), and the key modules are present by name.
+- **Dependency closure** — runtime third-party imports are installable by `pip install .` with
+  no dev extra (this is what surfaced `starlette`).
+- **Linux-vs-Windows traps** — every `app`-internal import resolves with exact case, and no
+  runtime code hardcodes a Windows path. Both pass on Windows *by accident* and would fail
+  only inside the container, which is precisely why they need pinning.
+- **`.dockerignore` vs runtime needs** — `app/`, `data/*.json` and `pyproject.toml` survive it,
+  and no runtime module reads the docker-ignored `fixtures/`.
+- **Dockerfile** — COPY sources exist in the build context, it drops to non-root, and
+  `EXPOSE`, the parsed `CMD` array and the healthcheck all agree on 8000.
+- **compose** — published port, inherited image healthcheck, `depends_on: service_healthy`,
+  literal in-cluster URLs (never `${VAR}` interpolation), the `web` profile's real mount
+  sources, and `proxy_pass http://backend:8000`.
+
+Checked for load-bearing: adding `data/` to `.dockerignore` fails two of them — the genuine
+breakage they exist to catch, since the image would boot without its seed files.
+
+What still cannot be proven without a daemon, and is the whole remaining risk: that the image
+**builds** on `python:3.12-slim` (`pip install .` resolving — note this machine runs 3.14, so
+a local install is *not* equivalent and would give false alarms) and that
+`python -m app.scripts.init_db` succeeds against a real PostGIS. To finish it on a Docker
+machine:
+
+```bash
+cp .env.example .env                      # required: compose reads it via env_file
+docker compose -f infra/docker-compose.yml up --build -d
+cd backend && .venv/Scripts/python -m app.scripts.demo_smoke --base-url http://localhost:8000
+```
 
 ## What changed in the 2026-09-24 session
 
@@ -292,10 +327,13 @@ Docker is still absent here, so the deploy claim stays *reviewed, not proven*. W
 verify without a daemon, all of it read-only:
 
 - **Dependency closure.** AST-scan of every `app/**/*.py` import: the third-party set is
-  exactly `fastapi`, `httpx`, `pydantic`, `pydantic_settings`, `redis`, `sqlalchemy` — all in
-  `[project.dependencies]`. Nothing imports the `dev` extra, and no runtime module reads
-  `tests/` or `fixtures/` (both `.dockerignore`d). No `Form`/`UploadFile`/`EmailStr`, so no
-  hidden `python-multipart` / `email-validator` need.
+  `fastapi`, `httpx`, `pydantic`, `pydantic_settings`, `redis`, `sqlalchemy` — all in
+  `[project.dependencies]` — plus `starlette`, which `main.py` imports directly and which
+  ships as a hard dependency of FastAPI (corrected 2026-09-25; the earlier "exactly six"
+  claim was optimistic). Nothing imports the `dev` extra, and no runtime module reads
+  `tests/` or `fixtures/` (both `.dockerignore`d) — now *enforced* by
+  `test_container_assumptions.py` instead of asserted. No `Form`/`UploadFile`/`EmailStr`, so
+  no hidden `python-multipart` / `email-validator` need.
 - **Runtime data paths.** `cities_seed_path` / `station_snapshot_path` are cwd-relative
   (`data/…`); the image sets `WORKDIR /app`, copies `data ./data`, and runs from `/app`, so
   `init_db` and the alias index find them.
