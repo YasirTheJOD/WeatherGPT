@@ -22,6 +22,7 @@ infra/       docker-compose stack: backend + PostgreSQL/PostGIS + Redis, plus an
              nginx `web` profile (Flutter PWA + same-origin /api reverse proxy) + nginx.conf
 render.yaml  Render Blueprint — one free service serves the API *and* the PWA (permanent URL)
 scripts/     build_web.sh — the release recipe for the committed web bundle
+             verify_pwa.mjs — headless-Chrome check of what the PWA actually renders
 .github/     keepalive.yml — keeps the free instance awake
 
 docs/        ARCHITECTURE.md (Phase 1 baseline) · DATA-SOURCES.md (verified integration matrix)
@@ -133,6 +134,18 @@ gate). Full script, run sheet and drills: [`docs/DEMO.md`](docs/DEMO.md).
 
 ```bash
 cd backend && python -m app.scripts.demo_smoke --base-url http://localhost:8000   # 8/8 in ~20s
+```
+
+Browser check (Node 22+ and Chrome — no `npm install`). `curl` proves the API but nothing
+about the UI, because Flutter web paints into a canvas. This boots the app in headless
+Chrome, drives it like a user, reads the rendered text out of the accessibility tree, and
+asserts the screen agrees with the payload it was handed — the source card, the per-source
+rainfall label, and that non-authoritative data never shows the official badge. Exits
+non-zero on any failure, so it gates a deploy the same way `demo_smoke` gates the demo.
+
+```bash
+node scripts/verify_pwa.mjs https://weathergpt-7vnu.onrender.com     # 14/14 in ~40s
+node scripts/verify_pwa.mjs http://localhost:8000 --location Mumbai
 ```
 
 ### Hardening (Phase 6)

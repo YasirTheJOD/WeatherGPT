@@ -154,6 +154,37 @@ Tests: 204 → **210 passed** (2 skipped); frontend 95 → **99 passed**, `flutt
 committed web bundle was rebuilt (`scripts/build_web.sh`, 4.6 MB), and the browser check confirms
 the deployed card now reads **`Rain (next 24h) 7 mm`**.
 
+### A committed browser check — `scripts/verify_pwa.mjs`
+
+The ad-hoc headless-Chrome check that found the rainfall label is now a real tool, because it
+is the only check that can see the UI at all: `curl` proves the API, and Flutter web paints
+into a canvas, so nothing else reads what a user actually sees.
+
+Node 22+ / Chrome, **zero dependencies** (Node's built-in `fetch` + `WebSocket`, so no
+`npm install`). It boots the PWA, drives it with real mouse events, enables Flutter's
+accessibility tree to make the canvas text readable, and asserts the screen agrees with the
+payload it was given — 14 checks, non-zero exit on any failure, so it gates like
+`demo_smoke`:
+
+```bash
+node scripts/verify_pwa.mjs https://weathergpt-7vnu.onrender.com     # 14/14 in ~40s
+node scripts/verify_pwa.mjs http://localhost:8000 --location Mumbai
+```
+
+The assertions that matter are the honesty ones: the source card must name the provider from
+`provenance.source_name`, the rainfall label must match `rainfall_basis`, non-authoritative
+data must **not** carry the official badge, and every API call must be same-origin (the
+one-origin design). It also checks there are no uncaught browser exceptions.
+
+Two bugs found while building it, both fixed rather than shipped:
+
+- **It leaked a Chrome process and a temp profile on every run.** `chrome.kill()` only stops
+the launcher — the renderer/GPU children survive, keep the profile locked, and a stray
+`chrome.exe` stays behind. Now it sends `Browser.close` over the browser-level CDP endpoint
+to tear down the whole tree, then retries the profile deletion.
+- **Verified it can actually fail.** With a bogus `--location` it reports 6/9 and exits 1; a
+check that cannot fail is worse than no check.
+
 ### Still unproven: the container path (Docker is still absent)
 
 Asked on 2026-09-25 to close this by actually running the stack. **It still cannot be run

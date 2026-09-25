@@ -293,6 +293,19 @@ interface notes: `DATA-SOURCES.md` §6. **Re-run the rehearsal after any provide
 change**, and expect the first request to be slow if the free instance has slept (15 min
 idle).
 
+Two checks are worth running against a live URL, and both exit non-zero on failure:
+
+```bash
+cd backend && .venv/Scripts/python -m app.scripts.demo_smoke --base-url <URL>   # API + SSE
+node scripts/verify_pwa.mjs <URL>                                              # rendered UI
+```
+
+`verify_pwa.mjs` (Node 22+ and Chrome, no `npm install`) is the only check that covers the
+UI: it loads the PWA, drives it like a user, reads the canvas-rendered text out of Flutter's
+accessibility tree, and asserts the screen matches the payload — including that the rainfall
+label follows `rainfall_basis` and that the official badge never appears on
+non-authoritative data.
+
 Still unproven: the **container** path. No image was built for the Render deploy (Render
 builds Python natively), so §1–§8 stay *reviewed, not proven* until a real
 `docker compose -f infra/docker-compose.yml up --build` on a Docker machine passes
