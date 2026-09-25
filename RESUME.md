@@ -120,6 +120,12 @@ Docs: `docs/DATA-SOURCES.md` §6 (the measurement, the verified interface, the h
 README (live URL, updated source table, the one-origin design proven in production),
 `fixtures/README.md`.
 
+One characteristic worth knowing on stage: MET Norway's series starts at the *current hour*, so
+the **first** local day covers only the hours still ahead of it — late in the evening that is a
+narrow high/low (e.g. `25.9/25.2 °C`). Honest for "what's left of today", but the scripted demo
+prompts deliberately ask about day 2 and beyond, which are complete days. Documented in
+`DATA-SOURCES.md` §6.
+
 ### Still unproven: the container path
 
 Render proved the *application*, not the image — no Docker build ran, because Render builds

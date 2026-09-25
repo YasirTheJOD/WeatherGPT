@@ -132,6 +132,12 @@ Second fallback for current conditions and daily forecasts, behind IMD and Open-
 - `rainfall_24h_mm` on the current observation is the sum of the **next 24 entries** — forecast rainfall for the coming 24h, *not* an observed 24h total.
 - `daily_forecast` aggregates each local day's own entries (max/min temperature, summed precipitation, mean humidity, max wind).
 
+One characteristic to expect on screen: because the series starts at the *current hour*, the
+**first** local day covers only the hours still ahead of it. Late in the evening that is a very
+narrow high/low range (e.g. `25.9/25.2 °C`). That is an honest reading of "what is left of
+today", not a bug — and it is why the scripted demo prompts ask about day 2 and beyond, which
+are complete days.
+
 Fixture: `backend/fixtures/met_norway_kolkata_compact.json` (captured real response, trimmed to the 7 local days a `days=7` forecast uses).
 
 ---
